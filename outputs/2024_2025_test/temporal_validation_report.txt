@@ -1,0 +1,47 @@
+================================================================================
+TEMPORAL DATA VALIDATION REPORT
+================================================================================
+Generated: 2025-09-25 14:45:29
+
+Check 1: Train/Test Split Temporal Ordering
+----------------------------------------
+✅ PASSED
+
+Check 2: Training Data Lookahead Bias
+----------------------------------------
+✅ PASSED
+
+WARNINGS:
+  • Found potentially problematic features with 'close' pattern: ['BDIY Close_logret']
+
+Check 3: Test Data Lookahead Bias
+----------------------------------------
+❌ FAILED
+
+VIOLATIONS:
+  • Found 436 data points after prediction date 2024-01-02 00:00:00
+
+WARNINGS:
+  • Found potentially problematic features with 'close' pattern: ['BDIY Close_logret']
+
+Check 4: GPR Publication Lag Compliance
+----------------------------------------
+✅ PASSED
+
+VIOLATIONS:
+  • No GPR features found for validation
+
+Check 5: Feature Staleness Assessment
+----------------------------------------
+✅ PASSED
+
+================================================================================
+SUMMARY
+================================================================================
+Total Checks: 5
+Total Violations: 2
+Total Warnings: 2
+
+⚠️  TEMPORAL VALIDATION FAILURES DETECTED!
+Please fix violations before using the model for trading.
+================================================================================

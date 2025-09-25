@@ -1,0 +1,127 @@
+{
+  "test_period": "2024-01-02 to 2025-09-24",
+  "accuracy_metrics": {
+    "mse": 0.15501538651205093,
+    "rmse": 0.3937199341055148,
+    "mae": 0.37079249019307114,
+    "directional_accuracy": 0.5423340961098398,
+    "hit_rate_significant_moves": 0.5368852459016393,
+    "mean_abs_price_error": 26.615179959646365,
+    "correlation": 0.18573671732307853,
+    "n_predictions": 437,
+    "n_significant_moves": 244,
+    "test_period": "2024-01-02 to 2025-09-24"
+  },
+  "model_metrics": {
+    "mse": {
+      "xgboost": 0.0023714677889682674,
+      "random_forest": 0.0047812052107563344,
+      "ridge": 0.4180919820274948,
+      "logit_direction": 0.9642067470254461
+    },
+    "rmse": {
+      "xgboost": 0.04869771851912846,
+      "random_forest": 0.0691462595572337,
+      "ridge": 0.64660032634348,
+      "logit_direction": 0.9819402970779059
+    },
+    "mae": {
+      "xgboost": 0.03895730551888115,
+      "random_forest": 0.057535401838508575,
+      "ridge": 0.436245833460641,
+      "logit_direction": 0.9765106602435285
+    },
+    "r2": {
+      "xgboost": -5.300351277581184,
+      "random_forest": -11.70237466352935,
+      "ridge": -1109.7578038238426,
+      "logit_direction": -2560.6376653874318
+    },
+    "n_samples": {
+      "xgboost": 437,
+      "random_forest": 437,
+      "ridge": 437,
+      "logit_direction": 437
+    }
+  },
+  "trading_metrics": {
+    "total_return": 0.12088761329832609,
+    "annualized_return": 0.06802253327491714,
+    "volatility": 0.14966997768287083,
+    "sharpe_ratio": 0.4544834864547592,
+    "sortino_ratio": 0.7027314305446465,
+    "max_drawdown": -0.16721273923479565,
+    "calmar_ratio": 0.4068023380646957,
+    "total_trades": 418,
+    "total_transaction_costs": 12210.3520198033,
+    "final_equity": 112088.76132983262,
+    "start_date": "2024-01-02T00:00:00",
+    "end_date": "2025-09-24T00:00:00"
+  },
+  "feature_importance": {
+    "xgboost": {
+      "copper_price_logret": 0.166080504655838,
+      "sp500_logret": 0.10160136222839355,
+      "brent_wti_spread_diff": 0.07248178869485855,
+      "dxy_diff": 0.05598118528723717,
+      "gold_price_logret": 0.06675544381141663,
+      "vix_diff": 0.05226312577724457,
+      "yield_curve_10y_3m_diff": 0.04533905163407326,
+      "EPU_index_diff": 0.04477798193693161,
+      "yield_curve_10y_3m": 0.039978157728910446,
+      "GPRD_diff": 0.03971783071756363,
+      "BDIY Close_logret": 0.03409241884946823,
+      "total_best": 0.05987180024385452,
+      "rolling_std_3y_total_best": 0.05704451724886894,
+      "brent_wti_spread": 0.024310870096087456,
+      "yoy_diff_total_best": 0.033979564905166626,
+      "rolling_mean_3y_total_best": 0.030939165502786636,
+      "GPRC_RUS_diff": 0.030353333801031113,
+      "GPRC_USA_diff": 0.02509542927145958,
+      "GPRC_SAU_diff": 0.019336571916937828
+    },
+    "random_forest": {
+      "copper_price_logret": 0.2137403273213379,
+      "sp500_logret": 0.1271067526514736,
+      "brent_wti_spread_diff": 0.14683272394840358,
+      "dxy_diff": 0.08397384066225075,
+      "gold_price_logret": 0.06690656514929046,
+      "vix_diff": 0.07515114208001021,
+      "yield_curve_10y_3m_diff": 0.06633725872411216,
+      "EPU_index_diff": 0.06266292968756945,
+      "yield_curve_10y_3m": 0.029563895667311175,
+      "GPRD_diff": 0.028223852914641977,
+      "BDIY Close_logret": 0.033240178386093895,
+      "total_best": 0.007260092665003992,
+      "rolling_std_3y_total_best": 0.008417460577925757,
+      "brent_wti_spread": 0.02386237004045268,
+      "yoy_diff_total_best": 0.011861328594912313,
+      "rolling_mean_3y_total_best": 0.008175009541702727,
+      "GPRC_RUS_diff": 0.0014990585230922943,
+      "GPRC_USA_diff": 0.002823098864288386,
+      "GPRC_SAU_diff": 0.002362114000126868
+    },
+    "mean_importance": {
+      "copper_price_logret": 0.18991041598858796,
+      "sp500_logret": 0.11435405743993357,
+      "brent_wti_spread_diff": 0.10965725632163106,
+      "dxy_diff": 0.06997751297474396,
+      "gold_price_logret": 0.06683100448035353,
+      "vix_diff": 0.0637071339286274,
+      "yield_curve_10y_3m_diff": 0.055838155179092706,
+      "EPU_index_diff": 0.05372045581225053,
+      "yield_curve_10y_3m": 0.03477102669811081,
+      "GPRD_diff": 0.033970841816102805,
+      "BDIY Close_logret": 0.03366629861778106,
+      "total_best": 0.03356594645442926,
+      "rolling_std_3y_total_best": 0.032730988913397346,
+      "brent_wti_spread": 0.024086620068270066,
+      "yoy_diff_total_best": 0.02292044675003947,
+      "rolling_mean_3y_total_best": 0.019557087522244682,
+      "GPRC_RUS_diff": 0.015926196162061704,
+      "GPRC_USA_diff": 0.013959264067873983,
+      "GPRC_SAU_diff": 0.010849342958532349
+    }
+  },
+  "validation_passed": false
+}

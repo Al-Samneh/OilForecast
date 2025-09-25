@@ -53,7 +53,7 @@ DATA_PATHS = {
     'ged': str(DATA_DIR / 'ged251-csv.zip'),
     'gpr_daily': str(DATA_DIR / 'data_gpr_daily_recent.xls'),
     'gpr_monthly': str(DATA_DIR / 'data_gpr_export.xls'),
-    'epu': str(DATA_DIR / 'All_Daily_Policy_Data.csv'),
+    'epu': str(DATA_DIR / 'USEPUINDXD.csv'),
     'bdi': str(DATA_DIR / 'koyfin_2025-09-15.csv'),
 }
 

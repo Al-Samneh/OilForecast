@@ -2,7 +2,22 @@
 Macroeconomic Features Module
 =============================
 
-Functions for creating macroeconomic and spread-based features.
+This module provides functions for creating macroeconomic and spread-based features
+for oil price forecasting. All feature engineering is designed to prevent lookahead bias
+by ensuring only historically available information is used.
+
+Key Features:
+- Macro spreads (oil price spreads, yield curves, risk premiums)
+- Stationary transformations (log returns, differences)
+- Momentum indicators with proper lags
+- Rolling statistical features
+
+CRITICAL: All features must respect temporal constraints:
+- No future information should be used
+- Publication lags must be considered
+- Only point-in-time available data should be included
+
+Author: Professional Quant Engineering Team
 """
 
 import pandas as pd
@@ -43,11 +58,30 @@ def create_stationary_features(df: pd.DataFrame) -> pd.DataFrame:
     """
     Create stationary features from raw price and level data.
     
+    This function transforms raw price series and level variables into stationary
+    features suitable for machine learning. All transformations respect temporal
+    constraints and use only past information.
+    
+    Transformations Applied:
+    1. Log returns for price series (ensures stationarity)
+    2. First differences for indices and rates
+    3. Spread calculations and their differences
+    4. Preservation of already stationary conflict features
+    
+    CRITICAL TEMPORAL SAFEGUARDS:
+    - All transformations use .diff() which only looks backward
+    - No forward-looking operations are applied
+    - Target variable (WTI log returns) uses only past prices
+    
     Args:
-        df: DataFrame containing raw market data
+        df: DataFrame containing raw market data with DatetimeIndex
         
     Returns:
-        DataFrame with stationary features
+        DataFrame with stationary features, properly lagged for ML training
+        
+    Note:
+        First row will contain NaN values due to differencing and is dropped.
+        This ensures no lookahead bias from the transformation process.
     """
     df_analysis = pd.DataFrame(index=df.index)
 

@@ -258,7 +258,9 @@ def merge_conflict_features_with_daily(df_daily: pd.DataFrame, merged_yearly: pd
         c: {
             'frequency': 'annual->daily (published, ffilled)', 
             'source': 'UCDP', 
-            'publication_lag_months': publication_lag_months
+            'publication_lag_months': publication_lag_months,
+            'publication_lag': f"{publication_lag_months * 30}D",
+            'is_published_series': True
         } for c in daily_feature_df.columns
     }
     combined_meta = {**metadata, **new_meta}

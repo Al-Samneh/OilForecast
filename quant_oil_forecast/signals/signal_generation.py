@@ -50,6 +50,62 @@ class SignalGenerator:
         signals[predictions <= self.threshold_sell] = SignalType.SELL.value
         
         return signals
+
+    def generate_confidence_filtered_signals(self, predictions: pd.Series,
+                                            min_abs_pred: float = 0.01,
+                                            dynamic_vol: Optional[pd.Series] = None,
+                                            vol_k: float = 0.5,
+                                            neutral_band: float = 0.0,
+                                            min_hold_periods: int = 3,
+                                            hysteresis: float = 0.0) -> pd.Series:
+        """
+        Generate signals using a confidence filter and optional dynamic volatility threshold.
+
+        Args:
+            predictions: Predicted returns series
+            min_abs_pred: Static minimum absolute prediction required to trade
+            dynamic_vol: Optional volatility series (aligned index) used for dynamic thresholding
+            vol_k: Multiplier for dynamic volatility threshold; threshold=max(min_abs_pred, vol_k*vol)
+            neutral_band: Additional neutral band around zero to reduce churn
+            min_hold_periods: Minimum holding periods to reduce whipsaw
+            hysteresis: Additional buffer to prevent rapid flip-flops between buy/sell
+
+        Returns:
+            Series of filtered signals
+        """
+        thr = pd.Series(min_abs_pred, index=predictions.index)
+        if dynamic_vol is not None:
+            dyn_thr = (vol_k * dynamic_vol).reindex(predictions.index).ffill()
+            thr = pd.concat([thr, dyn_thr], axis=1).max(axis=1)
+
+        # Apply neutral band
+        upper = thr + neutral_band
+        lower = -thr - neutral_band
+
+        raw = pd.Series(SignalType.HOLD.value, index=predictions.index)
+        raw[predictions >= upper] = SignalType.BUY.value
+        raw[predictions <= lower] = SignalType.SELL.value
+
+        # Hysteresis: require extra buffer to flip direction
+        if hysteresis > 0:
+            filtered = raw.copy()
+            current = SignalType.HOLD.value
+            for i in range(1, len(raw)):
+                pred = predictions.iloc[i]
+                if current == SignalType.BUY.value and pred > -hysteresis:
+                    filtered.iloc[i] = SignalType.BUY.value
+                elif current == SignalType.SELL.value and pred < hysteresis:
+                    filtered.iloc[i] = SignalType.SELL.value
+                else:
+                    current = filtered.iloc[i]
+        else:
+            filtered = raw
+
+        # Minimum hold filter
+        if min_hold_periods > 1:
+            filtered = self._apply_min_hold_filter(filtered, min_hold_periods)
+
+        return filtered
     
     def generate_ensemble_signals(self, prediction_dict: Dict[str, pd.Series],
                                 weights: Optional[Dict[str, float]] = None) -> pd.Series:

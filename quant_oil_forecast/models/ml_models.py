@@ -76,20 +76,35 @@ class MLModelSuite:
                 'param_grid': {
                     'alpha': [0.1, 1.0, 10.0, 100.0]
                 }
+            },
+            'logit_direction': {
+                'model': LogisticRegression,
+                'params': {
+                    'solver': 'liblinear',
+                    'random_state': RANDOM_STATE
+                },
+                'param_grid': {
+                    'C': [0.1, 1.0, 10.0]
+                }
             }
         }
     
     def prepare_data(self, df: pd.DataFrame, target_col: str, 
                     feature_cols: Optional[List[str]] = None,
-                    scale_features: bool = True) -> Tuple[pd.DataFrame, pd.Series]:
+                    scale_features: bool = True, 
+                    fit_scaler: bool = True) -> Tuple[pd.DataFrame, pd.Series]:
         """
-        Prepare data for model training.
+        Prepare data for model training or prediction.
+        
+        CRITICAL: To prevent data leakage, the scaler should ONLY be fit on training data.
+        For test/prediction data, use fit_scaler=False and apply the pre-fitted scaler.
         
         Args:
             df: Input DataFrame
             target_col: Target column name
             feature_cols: List of feature columns (if None, use all except target)
             scale_features: Whether to scale features
+            fit_scaler: Whether to fit the scaler (True for training, False for test/prediction)
             
         Returns:
             Tuple of (features DataFrame, target Series)
@@ -109,13 +124,28 @@ class MLModelSuite:
         
         # Scale features if requested
         if scale_features:
-            scaler = StandardScaler()
-            X_scaled = pd.DataFrame(
-                scaler.fit_transform(X),
-                index=X.index,
-                columns=X.columns
-            )
-            self.scalers['features'] = scaler
+            if fit_scaler:
+                # Fit scaler on training data only
+                scaler = StandardScaler()
+                X_scaled = pd.DataFrame(
+                    scaler.fit_transform(X),
+                    index=X.index,
+                    columns=X.columns
+                )
+                self.scalers['features'] = scaler
+                print("✅ Fitted scaler on training data (no data leakage)")
+            else:
+                # Use pre-fitted scaler for test/prediction data
+                if 'features' not in self.scalers:
+                    raise ValueError("Scaler not fitted. Call prepare_data with fit_scaler=True on training data first.")
+                
+                X_scaled = pd.DataFrame(
+                    self.scalers['features'].transform(X),
+                    index=X.index,
+                    columns=X.columns
+                )
+                print("✅ Applied pre-fitted scaler to test data (no data leakage)")
+            
             return X_scaled, y
         
         return X, y
@@ -139,6 +169,10 @@ class MLModelSuite:
             print(f"Fitting {model_name}...")
             
             try:
+                # Binary target for direction model
+                is_directional = (model_name == 'logit_direction')
+                y_fit = (y > 0).astype(int) if is_directional else y
+
                 if use_grid_search and 'param_grid' in config:
                     # Use grid search with time series split
                     tscv = TimeSeriesSplit(n_splits=TIME_SERIES_SPLIT_N_SPLITS)
@@ -154,7 +188,7 @@ class MLModelSuite:
                     
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")
-                        grid_search.fit(X, y)
+                        grid_search.fit(X, y_fit)
                     
                     self.fitted_models[model_name] = grid_search.best_estimator_
                     results[model_name] = {
@@ -168,7 +202,7 @@ class MLModelSuite:
                     
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")
-                        model.fit(X, y)
+                        model.fit(X, y_fit)
                     
                     self.fitted_models[model_name] = model
                     results[model_name] = {'status': 'fitted'}
@@ -220,7 +254,15 @@ class MLModelSuite:
         for name in models_to_use:
             if name in self.fitted_models:
                 try:
-                    pred = self.fitted_models[name].predict(X_scaled)
+                    model = self.fitted_models[name]
+                    if hasattr(model, 'predict_proba'):
+                        # Use probability of positive return mapped to [-1,1]
+                        proba = model.predict_proba(X_scaled)
+                        # Class 1 probability
+                        p1 = proba[:, 1]
+                        pred = (2.0 * p1) - 1.0
+                    else:
+                        pred = model.predict(X_scaled)
                     predictions[name] = pd.Series(pred, index=X.index, name=f'{name}_pred')
                 except Exception as e:
                     print(f"Error predicting with {name}: {e}")
