@@ -49,8 +49,6 @@ MARKET_TICKERS = {
 
 # Data Paths (absolute)
 DATA_PATHS = {
-    'ucdp_brd': str(DATA_DIR / 'ucdp-brd-conf-251-csv.zip'),
-    'ged': str(DATA_DIR / 'ged251-csv.zip'),
     'gpr_daily': str(DATA_DIR / 'data_gpr_daily_recent.xls'),
     'gpr_monthly': str(DATA_DIR / 'data_gpr_export.xls'),
     'epu': str(DATA_DIR / 'USEPUINDXD.csv'),
@@ -107,7 +105,7 @@ CITIES_TO_FETCH = ['Houston', 'Dallas', 'New York', 'Riyadh', 'London']
 # Model Configuration
 VOLATILITY_WINDOW = 20  # Days for rolling volatility calculation
 ROLLING_CORRELATION_WINDOW = 252  # Days for rolling correlation
-PUBLICATION_LAG_MONTHS = 12  # Default publication lag for conflict data
+# PUBLICATION_LAG_MONTHS = 12  # Removed - no longer needed without conflict data
 
 # Data Processing
 DATA_START_DATE = '2007-07-30'  # Default start date for data ingestion

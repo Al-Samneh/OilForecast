@@ -23,12 +23,10 @@ from dotenv import load_dotenv
 from quant_oil_forecast.config import settings
 from quant_oil_forecast.data_ingestion import (
     ingest_market_data,
-    load_conflict_sources,
-    merge_conflict_features_with_daily,
-    add_robust_gpr_features,
     add_daily_epu,
     add_bdi_prices,
 )
+from quant_oil_forecast.data_ingestion.gpr_enhanced import add_enhanced_gpr_features
 from quant_oil_forecast.features.macro import create_stationary_features
 from quant_oil_forecast.models.ml_models import MLModelSuite
 from quant_oil_forecast.models.garch import fit_garch_models, select_best_garch_model
@@ -193,6 +191,8 @@ def plot_2024_2025_performance(y_true: pd.Series, y_pred: pd.Series,
     plt.close()
 
 
+
+
 def run_2024_2025_test(use_enhanced_gpr: bool = True,
                        train_end_date: str = '2023-12-31',
                        test_start_date: str = '2024-01-01') -> Dict:
@@ -222,37 +222,20 @@ def run_2024_2025_test(use_enhanced_gpr: bool = True,
     print("📈 Ingesting market data...")
     market_df, metadata = ingest_market_data()
     
-    # 2) Add conflict features
-    print("⚔️  Loading conflict data...")
-    merged_raw, merged_yearly = load_conflict_sources(
-        settings.DATA_PATHS['ucdp_brd'], settings.DATA_PATHS['ged']
-    )
-    market_plus_conflict, metadata = merge_conflict_features_with_daily(
-        market_df, merged_yearly, 
-        publication_lag_months=settings.PUBLICATION_LAG_MONTHS, 
-        metadata=metadata
-    )
+    # 2) Start with market data only
+    market_base = market_df
     
     # 3) Add GPR, EPU, BDI features with proper lags
     print("🌍 Adding geopolitical risk features...")
-    if use_enhanced_gpr:
-        market_aug, gpr_metadata = add_robust_gpr_features(
-            market_plus_conflict,
-            gpr_daily_path=settings.DATA_PATHS['gpr_daily'],
-            gpr_monthly_path=settings.DATA_PATHS['gpr_monthly'],
-            country_list=settings.KEY_COUNTRIES,
-            enable_enhanced_mode=True,
-            show_report=True
-        )
-        metadata.update(gpr_metadata)
-    else:
-        from quant_oil_forecast.data_ingestion import add_gpr_features
-        market_aug = add_gpr_features(
-            market_plus_conflict,
-            gpr_daily_path=settings.DATA_PATHS['gpr_daily'],
-            gpr_monthly_path=settings.DATA_PATHS['gpr_monthly'],
-            country_list=settings.KEY_COUNTRIES,
-        )
+    market_aug, gpr_metadata = add_enhanced_gpr_features(
+        market_base,
+        gpr_daily_path=settings.DATA_PATHS['gpr_daily'],
+        gpr_monthly_path=settings.DATA_PATHS['gpr_monthly'],
+        country_list=settings.KEY_COUNTRIES,
+        include_proxies=True,
+        interpolation_method='time_aware'
+    )
+    metadata.update(gpr_metadata)
     
     market_aug = add_daily_epu(market_aug, epu_path=settings.DATA_PATHS['epu'], lag=1)
     market_aug = add_bdi_prices(market_aug, bdi_path=settings.DATA_PATHS['bdi'], lag=1)

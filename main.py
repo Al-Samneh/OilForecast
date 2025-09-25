@@ -20,8 +20,6 @@ from dotenv import load_dotenv
 from quant_oil_forecast.config import settings
 from quant_oil_forecast.data_ingestion import (
     ingest_market_data,
-    load_conflict_sources,
-    merge_conflict_features_with_daily,
     add_daily_epu,
     add_bdi_prices,
 )
@@ -66,18 +64,13 @@ def run_pipeline(with_weather: bool = False, signal_threshold_buy: float = 0.005
     # 1) Market data (tickers, prices, etc.)
     market_df, metadata = ingest_market_data()
 
-    # 2) Conflict data → annual → daily publish → merge (conflict features)
-    merged_raw, merged_yearly = load_conflict_sources(
-        settings.DATA_PATHS['ucdp_brd'], settings.DATA_PATHS['ged']
-    )
-    market_plus_conflict, metadata = merge_conflict_features_with_daily(
-        market_df, merged_yearly, publication_lag_months=settings.PUBLICATION_LAG_MONTHS, metadata=metadata
-    )
+    # 2) Start with market data only
+    market_base = market_df
 
     # 3) GPR, EPU, BDI (geopolitical features) – single source of truth
     print("🚀 Using enhanced GPR features with data quality handling...")
     market_aug, gpr_metadata = add_enhanced_gpr_features(
-        market_plus_conflict,
+        market_base,
         gpr_daily_path=settings.DATA_PATHS['gpr_daily'],
         gpr_monthly_path=settings.DATA_PATHS['gpr_monthly'],
         country_list=settings.KEY_COUNTRIES,
@@ -218,7 +211,7 @@ if __name__ == "__main__":
         signal_threshold_buy=args.threshold_buy,
         signal_threshold_sell=args.threshold_sell,
         grid_search=args.grid_search,
-        use_enhanced_gpr=not args.standard_gpr,  # Enhanced by default, disable with --standard-gpr
+        use_enhanced_gpr=True,  # Always use enhanced GPR (single source of truth)
     )
 
 

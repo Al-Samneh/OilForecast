@@ -1,7 +1,7 @@
 ================================================================================
 TEMPORAL DATA VALIDATION REPORT
 ================================================================================
-Generated: 2025-09-25 17:59:16
+Generated: 2025-09-25 17:54:29
 
 Check 1: Train/Test Split Temporal Ordering
 ----------------------------------------
@@ -19,7 +19,7 @@ Check 3: Test Data Lookahead Bias
 ❌ FAILED
 
 VIOLATIONS:
-  • Found 436 data points after prediction date 2024-01-02 00:00:00
+  • Found 910 data points after prediction date 2022-01-19 00:00:00
 
 WARNINGS:
   • Found potentially problematic features with 'close' pattern: ['BDIY Close_logret']
@@ -33,14 +33,29 @@ VIOLATIONS:
 
 Check 5: Feature Staleness Assessment
 ----------------------------------------
-✅ PASSED
+❌ FAILED
+
+WARNINGS:
+  • Feature 'wti_price_logret' is stale: 27 days old (max allowed: 1 days)
+  • Feature 'yield_curve_10y_3m' is stale: 27 days old (max allowed: 1 days)
+  • Feature 'yield_curve_10y_3m_diff' is stale: 27 days old (max allowed: 1 days)
+  • Feature 'sp500_logret' is stale: 27 days old (max allowed: 1 days)
+  • Feature 'gold_price_logret' is stale: 27 days old (max allowed: 1 days)
+  • Feature 'copper_price_logret' is stale: 27 days old (max allowed: 1 days)
+  • Feature 'dxy_diff' is stale: 27 days old (max allowed: 1 days)
+  • Feature 'vix_diff' is stale: 27 days old (max allowed: 1 days)
+  • Feature 'GPRD_diff' is stale: 27 days old (max allowed: 14 days)
+  • Feature 'GPRC_USA_diff' is stale: 27 days old (max allowed: 14 days)
+  • Feature 'GPRC_RUS_diff' is stale: 27 days old (max allowed: 14 days)
+  • Feature 'GPRC_SAU_diff' is stale: 27 days old (max allowed: 14 days)
+  • Feature 'EPU_index_diff' is stale: 27 days old (max allowed: 3 days)
 
 ================================================================================
 SUMMARY
 ================================================================================
 Total Checks: 5
 Total Violations: 2
-Total Warnings: 2
+Total Warnings: 15
 
 ⚠️  TEMPORAL VALIDATION FAILURES DETECTED!
 Please fix violations before using the model for trading.

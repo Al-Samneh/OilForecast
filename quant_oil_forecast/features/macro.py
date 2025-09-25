@@ -66,7 +66,7 @@ def create_stationary_features(df: pd.DataFrame) -> pd.DataFrame:
     1. Log returns for price series (ensures stationarity)
     2. First differences for indices and rates
     3. Spread calculations and their differences
-    4. Preservation of already stationary conflict features
+    4. Preservation of already stationary features
     
     CRITICAL TEMPORAL SAFEGUARDS:
     - All transformations use .diff() which only looks backward
@@ -110,14 +110,8 @@ def create_stationary_features(df: pd.DataFrame) -> pd.DataFrame:
         if col in df.columns:
             df_analysis[f'{col}_diff'] = df[col].diff()
 
-    # 5. Keep Annual Conflict Features As-Is (already step-wise or represent change)
-    conflict_cols_to_keep = [
-        'flag', 'yoy_diff_total_best', 'rolling_mean_3y_total_best', 
-        'rolling_std_3y_total_best', 'total_best'
-    ]
-    for col in conflict_cols_to_keep:
-        if col in df.columns:
-            df_analysis[col] = df[col].fillna(0)
+    # 5. Reserved for additional stationary features (conflict features removed)
+    # This section previously handled conflict features but is now empty
 
     # 6. Add GPRC (country-specific) features - differenced
     gprc_cols = [c for c in df.columns if 'GPRC_' in c]
@@ -131,8 +125,17 @@ def create_stationary_features(df: pd.DataFrame) -> pd.DataFrame:
         if col in df.columns:
             df_analysis[f'{col}_diff'] = df[col].diff()
 
-    # Drop initial NaNs created by transformations
-    df_analysis = df_analysis.dropna()
+    # Forward-fill recent missing values (e.g., weekend/holiday gaps in GPR data)
+    # then only drop rows where the target variable is NaN
+    df_analysis = df_analysis.ffill()
+    
+    # Only drop rows where the target variable (wti_price_logret) is NaN
+    # This preserves recent data even if some auxiliary features are missing
+    if 'wti_price_logret' in df_analysis.columns:
+        df_analysis = df_analysis.dropna(subset=['wti_price_logret'])
+    else:
+        # Fallback: drop rows only if ALL values are NaN
+        df_analysis = df_analysis.dropna(how='all')
 
     return df_analysis
 
