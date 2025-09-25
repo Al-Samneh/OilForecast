@@ -19,6 +19,15 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import warnings
 warnings.filterwarnings('ignore')
+@st.cache_data(show_spinner=False, ttl=3600)
+def _fetch_wti_prices_cached(start_date: pd.Timestamp, end_date: pd.Timestamp) -> pd.Series:
+    import yfinance as yf
+    oil_data = yf.download('CL=F', start=start_date, end=end_date, progress=False)
+    if oil_data.empty:
+        return pd.Series(dtype=float)
+    s = oil_data['Close']
+    s.name = 'wti_price'
+    return s
 
 # Page configuration
 st.set_page_config(
@@ -28,6 +37,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+@st.cache_data(show_spinner=False, ttl=600)
 def load_cached_data():
     """Load cached results from the test output directory."""
     cache_path = Path("outputs/2024_2025_test")
@@ -52,11 +62,20 @@ def load_cached_data():
         # Load cached data
         predictions = pd.read_csv(predictions_file, index_col=0, parse_dates=True)
         signals = pd.read_csv(signals_file, index_col=0, parse_dates=True)
-        signals.columns = ['position']  # Rename the signal column
+        # Normalize signals column name
+        if signals.shape[1] == 1 and signals.columns[0] in ['0', 0]:
+            signals.columns = ['position']
+        elif 'position' not in signals.columns:
+            signals.rename(columns={signals.columns[0]: 'position'}, inplace=True)
         
         # Load equity curve if available
         if equity_file.exists():
             equity = pd.read_csv(equity_file, index_col=0, parse_dates=True)
+            # Normalize equity column name
+            if equity.shape[1] == 1 and equity.columns[0] in ['0', 0]:
+                equity.columns = ['equity']
+            elif 'equity' not in equity.columns:
+                equity.rename(columns={equity.columns[0]: 'equity'}, inplace=True)
             signals = signals.join(equity, how='left')
         
         with open(results_file, 'r') as f:
@@ -203,14 +222,19 @@ def create_trade_analysis_table(signals_df, oil_prices):
     entry_date = None
     
     for date, row in signals_df.iterrows():
-        position = row['position']
-        price = oil_prices.reindex([date], method='nearest').iloc[0]
+        position = int(row['position']) if not pd.isna(row['position']) else 0
+        price_val = oil_prices.reindex([date], method='nearest').iloc[0]
+        try:
+            price = float(price_val)
+        except Exception:
+            # Fallback to numeric conversion
+            price = float(pd.to_numeric(pd.Series([price_val]), errors='coerce').iloc[0])
         
         if position != current_position:
             if current_position != 0:  # Close previous position
                 exit_price = price
                 exit_date = date
-                pnl = (exit_price - entry_price) * current_position
+                pnl = float(exit_price - entry_price) * int(current_position)
                 duration = (exit_date - entry_date).days
                 
                 trades.append({
@@ -225,17 +249,18 @@ def create_trade_analysis_table(signals_df, oil_prices):
                 })
             
             if position != 0:  # Start new position
-                entry_price = price
+                entry_price = float(price)
                 entry_date = date
                 current_position = position
     
     trades_df = pd.DataFrame(trades)
     
     if not trades_df.empty:
-        # Add profit/loss coloring
-        trades_df['Profit/Loss'] = trades_df['P&L'].apply(
-            lambda x: '🟢 Profit' if x > 0 else '🔴 Loss' if x < 0 else '⚪ Breakeven'
-        )
+        # Ensure numeric P&L
+        trades_df['P&L'] = pd.to_numeric(trades_df['P&L'], errors='coerce').fillna(0.0)
+        # Vectorized profit/loss labeling (avoids Series truth-value errors)
+        pnl = trades_df['P&L']
+        trades_df['Profit/Loss'] = np.where(pnl > 0, '🟢 Profit', np.where(pnl < 0, '🔴 Loss', '⚪ Breakeven'))
     
     return trades_df
 
@@ -322,40 +347,21 @@ def main():
         st.stop()
     
     # Get oil prices for the test period
-    oil_prices = None
+    oil_prices = predictions_df['actual_price'] if 'actual_price' in predictions_df.columns else None
     
-    # Try to get actual prices from predictions file first
-    if 'actual_price' in predictions_df.columns:
-        oil_prices = predictions_df['actual_price']
-    elif 'wti_price' in predictions_df.columns:
-        oil_prices = predictions_df['wti_price']
-    else:
-        # Load oil prices from market data if not in predictions
-        st.info("Loading oil price data from market data source...")
+    # Fallback: fetch WTI prices via yfinance if not present in predictions
+    if oil_prices is None or oil_prices.empty:
         try:
-            # Simple market data loading without complex dependencies
-            import yfinance as yf
-            
-            # Get WTI oil prices for the prediction period
-            start_date = predictions_df.index.min() - timedelta(days=5)  # Buffer for weekends
-            end_date = predictions_df.index.max() + timedelta(days=1)
-            
-            oil_data = yf.download('CL=F', start=start_date, end=end_date, progress=False)
-            if not oil_data.empty:
-                oil_prices = oil_data['Close'].reindex(predictions_df.index, method='ffill')
-                oil_prices.name = 'wti_price'
-                st.success("✅ Oil price data loaded successfully!")
-            else:
+            start_date = predictions_df.index.min() - pd.Timedelta(days=5)
+            end_date = predictions_df.index.max() + pd.Timedelta(days=1)
+            oil_prices = _fetch_wti_prices_cached(start_date, end_date).reindex(predictions_df.index, method='ffill')
+            if oil_prices.empty:
                 st.error("Failed to load oil price data from Yahoo Finance")
                 st.stop()
         except Exception as e:
             st.error(f"Error loading oil price data: {e}")
-            st.info("Please ensure you have internet connection for price data.")
+            st.info("Install yfinance: pip install yfinance")
             st.stop()
-    
-    if oil_prices is None or oil_prices.empty:
-        st.error("No oil price data available.")
-        st.stop()
     
     # Sidebar filters
     st.sidebar.subheader("Time Period Filter")
@@ -393,11 +399,11 @@ def main():
     # Main chart
     st.header("📈 Trading Visualization")
     
-    if not filtered_signals.empty:
+    if filtered_oil_prices is None or filtered_oil_prices.empty:
+        st.warning("No price data available for the selected date range.")
+    else:
         fig = create_trading_visualization(filtered_predictions, filtered_signals, filtered_oil_prices)
         st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.warning("No trading data available for the selected date range.")
     
     st.markdown("---")
     

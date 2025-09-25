@@ -28,10 +28,11 @@ load_dotenv(PROJECT_ROOT / ".env")
 FRED_API_KEY = os.getenv("FRED_API_KEY")
 EIA_API_KEY = os.getenv("EIA_API_KEY")
 
+# Make API keys optional for current workflows to prevent startup failure.
 if not FRED_API_KEY:
-    raise RuntimeError("FRED_API_KEY not found in environment")
+    FRED_API_KEY = None
 if not EIA_API_KEY:
-    raise RuntimeError("EIA_API_KEY not found in environment")
+    EIA_API_KEY = None
 
 # Data Sources
 MARKET_TICKERS = {

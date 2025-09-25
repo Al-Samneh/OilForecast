@@ -77,7 +77,7 @@ def launch_dashboard():
     
     try:
         subprocess.run([
-            sys.executable, "-m", "streamlit", "run", "streamlit_trading_dashboard.py"
+            sys.executable, "-m", "streamlit", "run", "simple_dashboard.py"
         ])
     except KeyboardInterrupt:
         print("\n👋 Dashboard stopped")
@@ -96,13 +96,9 @@ def main():
     
     # Check if data exists
     if not check_data_exists():
-        generate_fresh = input("Generate fresh trading data? (y/n): ").lower().strip()
-        if generate_fresh in ['y', 'yes']:
-            if not generate_trading_data():
-                print("❌ Failed to generate trading data")
-                return
-        else:
-            print("❌ Cannot launch dashboard without trading data")
+        # Non-interactive: attempt to generate trading data automatically
+        if not generate_trading_data():
+            print("❌ Failed to generate trading data")
             return
     
     # Launch dashboard

@@ -96,6 +96,7 @@ class Backtester:
         prices = price_data.loc[common_index]
         signals_aligned = signals.loc[common_index]
         positions = position_sizes.loc[common_index]
+        positions_actual = pd.Series(index=common_index, dtype=float)
         
         # Calculate returns
         returns = prices.pct_change().fillna(0)
@@ -106,6 +107,10 @@ class Backtester:
         current_position = 0.0
         cash = self.initial_capital
         equity = self.initial_capital
+        # Track trade entry for per-trade stop-loss
+        entry_price = None
+        entry_date = None
+        entry_sign = 0  # sign of position at entry: -1, 0, +1
         
         trades = []
         
@@ -121,7 +126,17 @@ class Backtester:
             else:
                 portfolio_returns.loc[date] = 0.0
             
-            # Check for position change
+            # Per-trade stop-loss (cumulative): if trade P&L since entry <= -8%, close now
+            stop_hit = False
+            price_now = prices.loc[date]
+            if current_position != 0 and entry_price is not None:
+                sign = 1 if current_position > 0 else -1
+                trade_return_since_entry = sign * (float(price_now) / float(entry_price) - 1.0)
+                if trade_return_since_entry <= -0.08:
+                    target_position = 0.0
+                    stop_hit = True
+
+            # Check for position change (after stop-loss logic)
             position_change = target_position - current_position
             
             if abs(position_change) > 1e-6:  # Position change threshold
@@ -135,13 +150,27 @@ class Backtester:
                     'position_change': position_change,
                     'price': prices.loc[date],
                     'trade_value': trade_value,
-                    'transaction_cost': transaction_cost_amount
+                    'transaction_cost': transaction_cost_amount,
+                    'stop_loss': stop_hit,
+                    'stop_type': 'daily_8pct' if stop_hit else None
                 })
                 
                 # Update equity for transaction costs
                 equity -= transaction_cost_amount
+                prev_sign = 0 if current_position == 0 else (1 if current_position > 0 else -1)
                 current_position = target_position
-            
+                new_sign = 0 if current_position == 0 else (1 if current_position > 0 else -1)
+                # Maintain/refresh trade entry anchors
+                if new_sign == 0:
+                    entry_price = None
+                    entry_date = None
+                    entry_sign = 0
+                else:
+                    if entry_price is None or new_sign != entry_sign:
+                        entry_price = price_now
+                        entry_date = date
+                        entry_sign = new_sign
+            positions_actual.loc[date] = current_position
             equity_curve.loc[date] = equity
         
         # Convert trades to DataFrame
@@ -153,7 +182,7 @@ class Backtester:
         return BacktestResults(
             equity_curve=equity_curve,
             returns=portfolio_returns,
-            positions=positions,
+            positions=positions_actual,
             trades=trades_df,
             metrics=metrics
         )

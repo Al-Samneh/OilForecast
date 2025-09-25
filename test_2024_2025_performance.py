@@ -28,6 +28,10 @@ from quant_oil_forecast.data_ingestion import (
 )
 from quant_oil_forecast.data_ingestion.gpr_enhanced import add_enhanced_gpr_features
 from quant_oil_forecast.features.macro import create_stationary_features
+from quant_oil_forecast.data_ingestion.weather_data import (
+    get_weather_data_for_analysis,
+    integrate_weather_with_oil_data,
+)
 from quant_oil_forecast.models.ml_models import MLModelSuite
 from quant_oil_forecast.models.garch import fit_garch_models, select_best_garch_model
 from quant_oil_forecast.signals.signal_generation import SignalGenerator
@@ -239,6 +243,19 @@ def run_2024_2025_test(use_enhanced_gpr: bool = True,
     
     market_aug = add_daily_epu(market_aug, epu_path=settings.DATA_PATHS['epu'], lag=1)
     market_aug = add_bdi_prices(market_aug, bdi_path=settings.DATA_PATHS['bdi'], lag=1)
+
+    # 3.5) Add weather features
+    print("⛅ Adding weather features...")
+    try:
+        start_date = market_aug.index.min().strftime('%Y-%m-%d')
+        end_date = market_aug.index.max().strftime('%Y-%m-%d')
+        weather_df = get_weather_data_for_analysis(start_date, end_date, cities=settings.CITIES_TO_FETCH)
+        if not weather_df.empty:
+            market_aug = integrate_weather_with_oil_data(market_aug, weather_df)
+        else:
+            print("Weather API returned no data; proceeding without weather features.")
+    except Exception as e:
+        print(f"Warning: Weather integration failed: {e}")
     
     # 4) Clean and prepare features
     print("🔧 Engineering features...")
