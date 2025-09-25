@@ -54,7 +54,7 @@ DATA_PATHS = {
     'gpr_daily': str(DATA_DIR / 'data_gpr_daily_recent.xls'),
     'gpr_monthly': str(DATA_DIR / 'data_gpr_export.xls'),
     'epu': str(DATA_DIR / 'USEPUINDXD.csv'),
-    'bdi': str(DATA_DIR / 'koyfin_2025-09-15.csv'),
+    'bdi': str(DATA_DIR / 'BalticDryIndexHistoricalData.csv'),
 }
 
 def validate_data_paths(required_keys: List[str] = None) -> Dict[str, str]:

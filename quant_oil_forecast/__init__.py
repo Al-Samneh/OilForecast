@@ -7,4 +7,4 @@ incorporating market data, geopolitical factors, and machine learning models.
 """
 
 __version__ = "1.0.0"
-__author__ = "Samneh & Abdelkader"
+__author__ = "Samneh & Abdelkadir"

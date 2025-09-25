@@ -22,10 +22,13 @@ from quant_oil_forecast.data_ingestion import (
     ingest_market_data,
     load_conflict_sources,
     merge_conflict_features_with_daily,
-    add_gpr_features,
-    add_robust_gpr_features,
     add_daily_epu,
     add_bdi_prices,
+)
+from quant_oil_forecast.data_ingestion.gpr_enhanced import (
+    add_enhanced_gpr_features,
+    assess_gpr_data_freshness,
+    print_gpr_data_report,
 )
 from quant_oil_forecast.data_ingestion.weather_data import (
     get_weather_data_for_analysis,
@@ -71,27 +74,23 @@ def run_pipeline(with_weather: bool = False, signal_threshold_buy: float = 0.005
         market_df, merged_yearly, publication_lag_months=settings.PUBLICATION_LAG_MONTHS, metadata=metadata
     )
 
-    # 3) GPR, EPU, BDI (geopolitical features)
-    if use_enhanced_gpr:
-        print("🚀 Using enhanced GPR features with data quality handling...")
-        market_aug, gpr_metadata = add_robust_gpr_features(
-            market_plus_conflict,
-            gpr_daily_path=settings.DATA_PATHS['gpr_daily'],
-            gpr_monthly_path=settings.DATA_PATHS['gpr_monthly'],
-            country_list=settings.KEY_COUNTRIES,
-            enable_enhanced_mode=True,
-            show_report=True
-        )
-        # Merge GPR metadata
-        metadata.update(gpr_metadata)
-    else:
-        print("📊 Using standard GPR features...")
-        market_aug = add_gpr_features(
-            market_plus_conflict,
-            gpr_daily_path=settings.DATA_PATHS['gpr_daily'],
-            gpr_monthly_path=settings.DATA_PATHS['gpr_monthly'],
-            country_list=settings.KEY_COUNTRIES,
-        )
+    # 3) GPR, EPU, BDI (geopolitical features) – single source of truth
+    print("🚀 Using enhanced GPR features with data quality handling...")
+    market_aug, gpr_metadata = add_enhanced_gpr_features(
+        market_plus_conflict,
+        gpr_daily_path=settings.DATA_PATHS['gpr_daily'],
+        gpr_monthly_path=settings.DATA_PATHS['gpr_monthly'],
+        country_list=settings.KEY_COUNTRIES,
+        include_proxies=True,
+        interpolation_method='time_aware'
+    )
+    # Merge GPR metadata and print report
+    metadata.update(gpr_metadata)
+    try:
+        status = assess_gpr_data_freshness(market_aug)
+        print_gpr_data_report(status, gpr_metadata)
+    except Exception:
+        pass
     market_aug = add_daily_epu(market_aug, epu_path=settings.DATA_PATHS['epu'], lag=1)
     market_aug = add_bdi_prices(market_aug, bdi_path=settings.DATA_PATHS['bdi'], lag=1)
 
@@ -208,7 +207,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--grid-search', action='store_true', help='Use grid search for ML hyperparameters')
     parser.add_argument('--threshold-buy', type=float, default=0.005, help='Buy threshold for signals (in predicted return units)')
     parser.add_argument('--threshold-sell', type=float, default=-0.005, help='Sell threshold for signals (in predicted return units)')
-    parser.add_argument('--standard-gpr', action='store_true', help='Use standard GPR features instead of enhanced mode')
+    # Standard GPR mode removed – enhanced GPR is the single source of truth
     return parser.parse_args()
 
 

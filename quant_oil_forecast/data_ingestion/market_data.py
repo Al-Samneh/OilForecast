@@ -17,18 +17,6 @@ import warnings
 
 from ..config.settings import MARKET_TICKERS, DATA_START_DATE, ANNUALIZATION_FACTOR
 
-# Import enhanced GPR handling
-try:
-    from quant_oil_forecast.data_ingestion.gpr_enhanced import (
-        add_enhanced_gpr_features,
-        print_gpr_data_report,
-        assess_gpr_data_freshness,
-        _add_basic_gpr_features,
-    )
-    _HAS_ENHANCED_GPR = True
-except ImportError:
-    _HAS_ENHANCED_GPR = False
-
 # Optional FRED API
 try:
     from fredapi import Fred
@@ -102,50 +90,6 @@ def ingest_market_data(start_date: str = None, end_date: str = None) -> Tuple[pd
     return data.copy(), metadata
 
 
-def add_gpr_features(df_daily: pd.DataFrame, gpr_daily_path: str, gpr_monthly_path: str, 
-                    country_list: list = None, weekly_publication_lag: int = 7) -> pd.DataFrame:
-    """
-    Thin wrapper for basic GPR feature addition.
-    Delegates to the single source of truth in gpr_enhanced._add_basic_gpr_features
-    (with publication lag and bounded forward-fill), and keeps a safe
-    fallback if the enhanced module isn't available.
-    """
-    if _HAS_ENHANCED_GPR:
-        # Delegate to the canonical implementation to avoid duplication
-        return _add_basic_gpr_features(
-            df_daily,
-            gpr_daily_path,
-            gpr_monthly_path,
-            country_list,
-            weekly_publication_lag=weekly_publication_lag,
-        )
-
-    # Fallback: minimal standard implementation if enhanced module unavailable
-    df = df_daily.copy()
-    gpr_daily = pd.read_excel(gpr_daily_path).rename(columns={'yyyymmdd': 'date'})
-    gpr_daily['date'] = pd.to_datetime(gpr_daily['date'], format='%Y%m%d')
-    gpr_daily = gpr_daily.set_index('date').sort_index()
-    daily_features = ['GPRD', 'GPRD_ACT', 'GPRD_THREAT', 'GPRD_MA7', 'GPRD_MA30']
-    df = df.merge(gpr_daily[daily_features].shift(weekly_publication_lag), how='left', left_index=True, right_index=True)
-
-    gpr_monthly = pd.read_excel(gpr_monthly_path)
-    gpr_monthly['month'] = pd.to_datetime(gpr_monthly['month'])
-    gpr_monthly = gpr_monthly.set_index('month').sort_index()
-    monthly_features = ['GPR', 'GPRT', 'GPRA']
-    if country_list:
-        for c in country_list:
-            col_name = f'GPRC_{c.upper()[:3]}'
-            if col_name in gpr_monthly.columns:
-                monthly_features.append(col_name)
-    gpr_monthly_lagged = gpr_monthly[monthly_features].shift(30, freq='D')
-    gpr_monthly_daily = gpr_monthly_lagged.reindex(df.index).ffill()
-    if not gpr_monthly_lagged.dropna(how='all').empty:
-        last_monthly_pub = gpr_monthly_lagged.dropna(how='all').index.max()
-        if last_monthly_pub is not None:
-            gpr_monthly_daily.loc[gpr_monthly_daily.index > last_monthly_pub, :] = np.nan
-    return df.merge(gpr_monthly_daily, how='left', left_index=True, right_index=True)
-
-
 def add_daily_epu(df_daily: pd.DataFrame, epu_path: str, lag: int = 1) -> pd.DataFrame:
     """
     Add Economic Policy Uncertainty (EPU) data to the daily dataset.
@@ -187,16 +131,12 @@ def add_daily_epu(df_daily: pd.DataFrame, epu_path: str, lag: int = 1) -> pd.Dat
         epu = epu.rename(columns={value_col: 'EPU_index'})
         epu = epu[['date', 'EPU_index']]
     else:
-        # Newer format (e.g., FRED-style two columns)
-        # Accept common FRED-like date headers
-        date_col = (
-            cols_lower.get('date')
-            or cols_lower.get('observation_date')
-            or cols_lower.get('observationdate')
-            or next((c for c in epu_raw.columns if c.upper() == 'DATE'), None)
-        )
+        date_col = (cols_lower.get('observation_date'))
+
         if date_col is None:
             raise ValueError("EPU file must contain a DATE column or year/month/day columns.")
+
+            
         # Value column detection: USEPUINDXD / USEPUINXD / VALUE / EPU
         value_col = None
         for key in ['usepuindxd', 'usepuinxd', 'value', 'epu', 'epu_index']:
@@ -258,9 +198,26 @@ def add_bdi_prices(df_daily: pd.DataFrame, bdi_path: str, lag: int = 1,
     bdi['date'] = pd.to_datetime(bdi[date_col])
     bdi = bdi.set_index('date').sort_index()
 
-    # Rename columns to include BDIY prefix
-    rename_map = {c: f"BDIY {c.split()[-1]}" for c in bdi.columns if isinstance(c, str)}
-    bdi = bdi.rename(columns=rename_map)
+    # Select only the closing price column (Investing.com: "Price"), keep as 'BDIY Close'
+    price_col = None
+    for c in list(bdi.columns):
+        if isinstance(c, str) and c.strip().lower() in {'price', 'close'}:
+            price_col = c
+            break
+    if price_col is None:
+        # Fallback to the first non-date numeric-looking column
+        non_date_cols = [c for c in bdi.columns if c != date_col]
+        price_col = non_date_cols[0]
+
+    close_series = bdi[price_col].astype(str)
+    close_series = (
+        close_series
+        .str.replace(',', '', regex=False)
+        .str.replace('%', '', regex=False)
+        .str.replace('\u2212', '-', regex=False)
+    )
+    close_series = pd.to_numeric(close_series, errors='coerce')
+    bdi = pd.DataFrame({'BDIY Close': close_series}, index=bdi.index)
 
     # Reindex to match the main df's date range and ffill
     bdi_daily = bdi.reindex(df.index).ffill()
@@ -269,91 +226,3 @@ def add_bdi_prices(df_daily: pd.DataFrame, bdi_path: str, lag: int = 1,
         bdi_daily = bdi_daily.shift(lag)
 
     return df.merge(bdi_daily, how='left', left_index=True, right_index=True)
-
-
-def add_robust_gpr_features(df_daily: pd.DataFrame, gpr_daily_path: str, 
-                           gpr_monthly_path: str, country_list: list = None,
-                           enable_enhanced_mode: bool = True, 
-                           show_report: bool = True) -> Tuple[pd.DataFrame, Dict]:
-    """
-    Add GPR features with enhanced data quality handling for real-time forecasting.
-    
-    This function addresses the GPR data update lag issue by:
-    1. Detecting data staleness and quality
-    2. Applying intelligent interpolation for missing values
-    3. Including alternative risk proxies when GPR data is stale
-    4. Providing confidence weights for model uncertainty
-    
-    Args:
-        df_daily: Main daily dataset
-        gpr_daily_path: Path to daily GPR data Excel file
-        gpr_monthly_path: Path to monthly GPR data Excel file
-        country_list: List of countries for country-specific GPR indices
-        enable_enhanced_mode: Whether to use enhanced GPR handling (recommended: True)
-        show_report: Whether to print data quality report
-        
-    Returns:
-        Tuple of (DataFrame with GPR features, metadata dict)
-    """
-    if enable_enhanced_mode and _HAS_ENHANCED_GPR:
-        # Use enhanced GPR handling with data quality features
-        df_enhanced, metadata = add_enhanced_gpr_features(
-            df_daily, gpr_daily_path, gpr_monthly_path, country_list,
-            include_proxies=True, interpolation_method='time_aware'
-        )
-        
-        if show_report:
-            status = assess_gpr_data_freshness(df_enhanced)
-            print_gpr_data_report(status, metadata)
-        
-        # Add standard metadata structure for compatibility
-        base_metadata = {
-            'gpr_daily_features': {
-                'frequency': 'daily (weekly updates)', 
-                'source': 'Caldara & Iacoviello GPR Index',
-                'publication_lag': 'Up to 7 days',
-                'quality_enhanced': True
-            },
-            'gpr_monthly_features': {
-                'frequency': 'monthly', 
-                'source': 'Caldara & Iacoviello GPR Index',
-                'publication_lag': 'Up to 35 days',
-                'forward_filled': True
-            }
-        }
-        
-        # Merge with enhanced metadata
-        combined_metadata = {**base_metadata, **metadata}
-        
-        return df_enhanced, combined_metadata
-        
-    else:
-        # Fall back to standard GPR handling
-        if not _HAS_ENHANCED_GPR:
-            print("Warning: Enhanced GPR mode not available. Using standard GPR features.")
-        
-        df_standard = add_gpr_features(df_daily, gpr_daily_path, gpr_monthly_path, country_list)
-        
-        # Check data quality with standard method
-        if show_report and _HAS_ENHANCED_GPR:
-            status = assess_gpr_data_freshness(df_standard)
-            print(f"GPR Data Status: {status.days_stale_daily} days stale (Quality: {status.quality_score:.2f})")
-            if status.is_daily_stale:
-                print("⚠️  Consider enabling enhanced_mode=True for better data quality handling.")
-        
-        metadata = {
-            'gpr_daily_features': {
-                'frequency': 'daily (weekly updates)', 
-                'source': 'Caldara & Iacoviello GPR Index',
-                'publication_lag': 'Up to 7 days',
-                'quality_enhanced': False
-            },
-            'gpr_monthly_features': {
-                'frequency': 'monthly', 
-                'source': 'Caldara & Iacoviello GPR Index', 
-                'publication_lag': 'Up to 35 days',
-                'forward_filled': True
-            }
-        }
-        
-        return df_standard, metadata
