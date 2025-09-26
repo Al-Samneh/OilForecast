@@ -124,7 +124,8 @@ def run_pipeline(with_weather: bool = False, signal_threshold_buy: float = 0.005
 
     # 7) Train/Test split (train/test split)
     train_df, test_df = _train_test_split_time(df_feats, test_fraction=settings.TEST_SIZE)
-    target_col = 'wti_price_logret'
+    # Use next-day tradable target aligned to execution on t+1
+    target_col = 'wti_price_logret_next'
     
     # 7.1) CRITICAL: Validate no future information leakage
     print("\n🔍 Running comprehensive temporal validation...")
@@ -178,9 +179,9 @@ def run_pipeline(with_weather: bool = False, signal_threshold_buy: float = 0.005
     plt.scatter(ensemble_pred, y_test_aligned, alpha=0.4)
     plt.axhline(0, color='k', lw=1)
     plt.axvline(0, color='k', lw=1)
-    plt.title('Predicted vs Actual: Ensemble vs WTI Log Returns')
-    plt.xlabel('Predicted')
-    plt.ylabel('Actual')
+    plt.title('Predicted vs Actual: Ensemble vs Next-Day WTI Log Returns')
+    plt.xlabel('Predicted (for t+1)')
+    plt.ylabel('Actual (t+1)')
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
     plt.savefig(settings.OUTPUT_DIR / 'pred_vs_actual.png', dpi=200)

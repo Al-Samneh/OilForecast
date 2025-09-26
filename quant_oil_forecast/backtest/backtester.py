@@ -111,7 +111,7 @@ class Backtester:
         entry_price = None
         entry_date = None
         entry_sign = 0  # sign of position at entry: -1, 0, +1
-        
+         
         trades = []
         
         for i, date in enumerate(common_index):

@@ -54,7 +54,7 @@ def create_macro_spreads(df: pd.DataFrame) -> pd.DataFrame:
     return df_out
 
 
-def create_stationary_features(df: pd.DataFrame) -> pd.DataFrame:
+def create_stationary_features(df: pd.DataFrame):
     """
     Create stationary features from raw price and level data.
     
@@ -88,6 +88,8 @@ def create_stationary_features(df: pd.DataFrame) -> pd.DataFrame:
     # 1. Create the Target Variable (log returns)
     if 'wti_price' in df.columns:
         df_analysis['wti_price_logret'] = np.log(df['wti_price']).diff()
+        # Next-day tradable target aligned to execution on t+1
+        df_analysis['wti_price_logret_next'] = df_analysis['wti_price_logret'].shift(-1)
 
     # 2. Create Engineered Spreads and their differences
     if 'brent_price' in df.columns and 'wti_price' in df.columns:
@@ -129,9 +131,10 @@ def create_stationary_features(df: pd.DataFrame) -> pd.DataFrame:
     # then only drop rows where the target variable is NaN
     df_analysis = df_analysis.ffill()
     
-    # Only drop rows where the target variable (wti_price_logret) is NaN
-    # This preserves recent data even if some auxiliary features are missing
-    if 'wti_price_logret' in df_analysis.columns:
+    # Only drop rows where the tradable target is NaN; fall back to same-day if needed
+    if 'wti_price_logret_next' in df_analysis.columns:
+        df_analysis = df_analysis.dropna(subset=['wti_price_logret_next'])
+    elif 'wti_price_logret' in df_analysis.columns:
         df_analysis = df_analysis.dropna(subset=['wti_price_logret'])
     else:
         # Fallback: drop rows only if ALL values are NaN

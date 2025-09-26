@@ -156,8 +156,8 @@ def plot_2024_2025_performance(y_true: pd.Series, y_pred: pd.Series,
     
     axes[0, 0].scatter(y_pred_aligned, y_true_aligned, alpha=0.6)
     axes[0, 0].plot([-0.1, 0.1], [-0.1, 0.1], 'r--', label='Perfect Prediction')
-    axes[0, 0].set_xlabel('Predicted Daily Returns')
-    axes[0, 0].set_ylabel('Actual Daily Returns')
+    axes[0, 0].set_xlabel('Predicted Next-Day Returns (t+1)')
+    axes[0, 0].set_ylabel('Actual Next-Day Returns (t+1)')
     axes[0, 0].set_title('Predicted vs Actual Returns (2024-2025)')
     axes[0, 0].legend()
     axes[0, 0].grid(True, alpha=0.3)
@@ -264,9 +264,9 @@ def run_2024_2025_test(use_enhanced_gpr: bool = True,
             market_aug.drop(columns=[col], inplace=True, errors='ignore')
     market_aug.ffill(inplace=True)
     
-    # 5) Create stationary features
+    # 5) Create stationary features (includes next-day tradable target)
     df_feats = create_stationary_features(market_aug)
-    target_col = 'wti_price_logret'
+    target_col = 'wti_price_logret_next'
     
     # 6) Custom train/test split for 2024-2025 evaluation
     print(f"✂️  Creating custom train/test split...")
